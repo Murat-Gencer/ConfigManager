@@ -1,0 +1,54 @@
+.App {
+  text-align: center;
+}
+
+.config-item {
+  margin-bottom: 16px;
+}
+
+.sensitive-value {
+  background-color: #ffeb3b;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.encrypted-value {
+  background-color: #e3f2fd;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.export-button {
+  margin: 8px;
+}
+
+.search-box {
+  margin-bottom: 20px;
+}
+
+.environment-card {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.environment-card:hover {
+  transform: translateY(-2px);
+}
+
+.config-table {
+  margin-top: 20px;
+}
+
+.add-config-form {
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
