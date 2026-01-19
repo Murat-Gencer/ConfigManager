@@ -18,7 +18,6 @@ const LoginPage = () => {
 
     try {
       const result = await apiService.auth.login(email, password);
-      debugger;
       if (result.success) {
         console.log('Login successful:', result.data);
         navigate('/dashboard');

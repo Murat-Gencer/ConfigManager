@@ -1,131 +1,243 @@
 import React from 'react';
-import { 
-  Grid, 
-  Card, 
-  CardContent, 
-  Typography, 
-  Button,
-  Box,
-  Chip
-} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from 'react-query';
-import axios from 'axios';
-import AddIcon from '@mui/icons-material/Add';
-import EnvironmentIcon from '@mui/icons-material/Cloud';
+import apiService from '../api/api';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-
-  const { data: environments = [], isLoading } = useQuery(
-    'environments',
-    async () => {
-      const response = await axios.get('/api/config/environments');
-      return response.data;
+  const user = apiService.auth.getCurrentUser();
+  const { data: projects = [], isLoading, error } = useQuery(
+    'projects',
+    apiService.projects.getAll,
+    {
+      onError: (err) => {
+        console.error('Projects fetch error:', err);
+      }
     }
   );
 
-  const { data: allConfigs = [] } = useQuery(
-    'allConfigs',
-    async () => {
-      const response = await axios.get('/api/config');
-      return response.data;
-    }
-  );
-
-  const getConfigCountByEnvironment = (env) => {
-    return allConfigs.filter(config => config.environment === env).length;
+  const handleLogout = () => {
+    apiService.auth.logout();
+    navigate('/');
   };
 
-  const predefinedEnvironments = ['development', 'staging', 'production'];
-  const allEnvironments = [...new Set([...predefinedEnvironments, ...environments])];
-
+    // Loading state
   if (isLoading) {
-    return <Typography>Loading...</Typography>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-dark">
+        <div className="text-white">Loading projects...</div>
+      </div>
+    );
   }
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Configuration Dashboard
-      </Typography>
-      
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Manage your environment variables across different environments
-      </Typography>
-
-      <Grid container spacing={3}>
-        {allEnvironments.map((env) => {
-          const configCount = getConfigCountByEnvironment(env);
-          const exists = environments.includes(env);
+    <div className="bg-background-light dark:bg-background-dark min-h-screen flex font-display text-gray-900 dark:text-gray-100 overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-gray-200 dark:border-[#233648] bg-white dark:bg-[#0d1117] flex flex-col h-screen">
+        <div className="p-6 flex items-center gap-3">
+          <div className="size-8 flex items-center justify-center bg-primary rounded-lg text-white">
+            <span className="material-symbols-outlined text-2xl">key_visualizer</span>
+          </div>
+          <h2 className="text-lg font-bold tracking-tight">Config Vault</h2>
+        </div>
+        
+        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+          <div className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 px-2">Main</div>
+          <a className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary" href="#">
+            <span className="material-symbols-outlined text-xl">folder</span>
+            <span className="font-medium text-sm">Projects</span>
+          </a>
+          <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors" href="#">
+            <span className="material-symbols-outlined text-xl">layers</span>
+            <span className="font-medium text-sm">Environments</span>
+          </a>
+          <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors" href="#">
+            <span className="material-symbols-outlined text-xl">group</span>
+            <span className="font-medium text-sm">Team Members</span>
+          </a>
+          <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors" href="#">
+            <span className="material-symbols-outlined text-xl">history</span>
+            <span className="font-medium text-sm">Audit Logs</span>
+          </a>
           
-          return (
-            <Grid item xs={12} sm={6} md={4} key={env}>
-              <Card 
-                className="environment-card"
-                onClick={() => navigate(`/config/${env}`)}
-                sx={{ 
-                  height: '100%',
-                  opacity: exists ? 1 : 0.7,
-                  border: exists ? '2px solid #1976d2' : '1px solid #ddd'
-                }}
-              >
-                <CardContent>
-                  <Box display="flex" alignItems="center" mb={2}>
-                    <EnvironmentIcon color="primary" sx={{ mr: 1 }} />
-                    <Typography variant="h6" component="div">
-                      {env.charAt(0).toUpperCase() + env.slice(1)}
-                    </Typography>
-                  </Box>
-                  
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {exists ? `${configCount} configurations` : 'No configurations yet'}
-                  </Typography>
-                  
-                  <Box mt={2}>
-                    {exists ? (
-                      <Chip 
-                        label="Active" 
-                        color="success" 
-                        size="small" 
-                      />
-                    ) : (
-                      <Chip 
-                        label="Create New" 
-                        color="primary" 
-                        size="small" 
-                        icon={<AddIcon />}
-                      />
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          );
-        })}
-      </Grid>
+          <div className="pt-8 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 px-2">System</div>
+          <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors" href="#">
+            <span className="material-symbols-outlined text-xl">settings</span>
+            <span className="font-medium text-sm">Settings</span>
+          </a>
+          <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors" href="#">
+            <span className="material-symbols-outlined text-xl">security</span>
+            <span className="font-medium text-sm">Integrations</span>
+          </a>
+        </nav>
+        
+        <div className="p-4 border-t border-gray-200 dark:border-[#233648]">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+              {user?.username?.substring(0, 2).toUpperCase() || 'JD'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold truncate">{user?.username || 'Jane Developer'}</p>
+              <p className="text-[10px] text-gray-500 truncate">Pro Account</p>
+            </div>
+            <button 
+              className="text-gray-500 hover:text-white transition-colors"
+              onClick={handleLogout}
+            >
+              <span className="material-symbols-outlined text-lg">logout</span>
+            </button>
+          </div>
+        </div>
+      </aside>
 
-      <Box mt={4}>
-        <Typography variant="h6" gutterBottom>
-          Quick Actions
-        </Typography>
-        <Button 
-          variant="outlined" 
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/config/development')}
-          sx={{ mr: 2 }}
-        >
-          Add Development Config
-        </Button>
-        <Button 
-          variant="outlined" 
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/config/production')}
-        >
-          Add Production Config
-        </Button>
-      </Box>
-    </Box>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+         <header className="h-16 border-b border-gray-200 dark:border-[#233648] bg-white dark:bg-background-dark/50 flex items-center justify-between px-8">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold">Projects</h1>
+            <span className="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[10px] font-bold uppercase tracking-widest">
+              {projects.length} Active
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-primary/20">
+              <span className="material-symbols-outlined text-sm">add</span>
+              Add New Project
+            </button>
+          </div>
+        </header>
+        
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div className="relative w-full max-w-md">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xl">search</span>
+              <input className="w-full bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#324d67] rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-all" placeholder="Search variables, keys, or descriptions..." type="text"/>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-[#324d67] text-sm font-medium hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                <span className="material-symbols-outlined text-lg">filter_list</span>
+                Filter
+              </button>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-[#324d67] text-sm font-medium hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                <span className="material-symbols-outlined text-lg">sort</span>
+                Sort
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Active Projects</h3>
+                <span className="text-xs text-gray-500">{projects.length} Projects</span>
+              </div>
+
+              {projects.length === 0 ? (
+                <div className="glass-card rounded-xl p-8 text-center">
+                  <span className="material-symbols-outlined text-gray-400 text-5xl mb-4">folder_off</span>
+                  <p className="text-gray-500">No projects found. Create your first project!</p>
+                </div>
+              ) : (
+                projects.map((project) => (
+                  <div 
+                    key={project.id} 
+                    className="glass-card rounded-xl p-4 flex items-center justify-between group hover:border-primary/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-gray-100 dark:bg-white/5 rounded-lg">
+                        <span className="material-symbols-outlined text-primary">folder</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm">{project.name}</h4>
+                        <p className="text-xs text-gray-500">{project.description || 'No description'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-white/10 text-[10px] font-bold text-gray-400">
+                        {new Date(project.createdAt).toLocaleDateString()}
+                      </span>
+                      <button 
+                        className="p-2 hover:bg-white/10 rounded-lg text-gray-500"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Edit project handler
+                        }}
+                      >
+                        <span className="material-symbols-outlined text-lg">edit</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+              </div>
+
+           
+            {/* <div className="space-y-6">
+              <div className="glass-card rounded-xl p-6 border-primary/20 bg-primary/5">
+                <div className="flex items-center gap-2 mb-6">
+                  <span className="material-symbols-outlined text-primary">add_circle</span>
+                  <h3 className="font-bold text-lg">Quick Add Config</h3>
+                </div>
+                <div className="flex border-b border-gray-200 dark:border-[#324d67] mb-6">
+                  <button className="px-4 py-2 text-xs font-bold border-b-2 border-primary text-primary uppercase tracking-wider">Form</button>
+                  <button className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-300 uppercase tracking-wider">.env</button>
+                  <button className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-300 uppercase tracking-wider">YAML</button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Key Name</label>
+                    <input className="w-full bg-white dark:bg-[#192633] border border-gray-200 dark:border-[#324d67] rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none" placeholder="e.g. AWS_REGION" type="text"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Value</label>
+                    <textarea className="w-full bg-white dark:bg-[#192633] border border-gray-200 dark:border-[#324d67] rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none" placeholder="Paste your value here..." rows="3"></textarea>
+                  </div>
+                  <div className="flex items-center gap-2 py-2">
+                    <input className="rounded border-gray-300 dark:border-[#324d67] bg-white dark:bg-[#192633] text-primary focus:ring-primary" id="isSecret" type="checkbox"/>
+                    <label className="text-sm text-gray-400" htmlFor="isSecret">Mask as secret</label>
+                  </div>
+                  <button className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-lg transition-all shadow-lg shadow-primary/20">
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+
+              <div className="glass-card rounded-xl p-6">
+                <h4 className="text-sm font-bold mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-lg">code</span>
+                  Editor Preview
+                </h4>
+                <div className="code-editor bg-black/40 rounded-lg p-4 text-[13px] leading-relaxed border border-[#324d67]">
+                  <div><span className="syntax-comment"># Application Secrets</span></div>
+                  <div><span className="syntax-key">API_KEY</span>: <span className="syntax-value">"sh-7261-p..."</span></div>
+                  <div><span className="syntax-key">TIMEOUT</span>: <span className="syntax-string">5000</span></div>
+                  <div><span className="syntax-key">DEBUG</span>: <span className="syntax-string">false</span></div>
+                  <div className="mt-4"><span className="animate-pulse w-1 h-4 bg-primary inline-block"></span></div>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-4 leading-relaxed">
+                  Support for bulk importing from .env or YAML files. Drag &amp; drop files directly into the editor area.
+                </p>
+              </div>
+            </div> */}
+          </div>
+        </div>
+
+        <footer className="h-10 border-t border-gray-200 dark:border-[#233648] px-8 flex items-center justify-between text-[10px] font-medium text-gray-500 uppercase tracking-widest bg-white dark:bg-background-dark/50">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span> 
+              System Sync: Stable
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">lock</span> 
+              Encryption: AES-256
+            </span>
+          </div>
+          <div>v2.4.0-stable © 2024 Config Vault</div>
+        </footer>
+      </main>
+    </div>
   );
 };
 

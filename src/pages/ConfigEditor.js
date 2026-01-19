@@ -1,876 +1,334 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import Editor from '@monaco-editor/react';
-import {
-  Box,
-  Typography,
-  TextField,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControlLabel,
-  Checkbox,
-  Chip,
-  Alert,
-  Tooltip
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Download as DownloadIcon,
-  Search as SearchIcon,
-  ArrowBack as ArrowBackIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
-  DataObject as DataObjectIcon,
-  Code as CodeIcon
-} from '@mui/icons-material';
-import axios from 'axios';
+import apiService from '../api/api';
+import AddConfigModal from '../components/AddConfig';
 import toast from 'react-hot-toast';
-import fileDownload from 'js-file-download';
+import ConfirmDialog from '../components/ConfirmDialog';
+
 
 const ConfigEditor = () => {
-  const { environment } = useParams();
+  const { projectId } = useParams();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [configToDelete, setConfigToDelete] = useState(null);
+  const [selectedEnvironment, setSelectedEnvironment] = useState('development');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
-  const [openEditorDialog, setOpenEditorDialog] = useState(false);
+  const user = apiService.auth.getCurrentUser();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
-  const [showSensitive, setShowSensitive] = useState({});
-  const [bulkJsonText, setBulkJsonText] = useState('');
-  const [editorContent, setEditorContent] = useState('');
-  const [editorMode, setEditorMode] = useState('json'); // json, yaml, env
-  const [newConfig, setNewConfig] = useState({
-    key: '',
-    value: '',
-    description: '',
-    isSensitive: false,
-    isEncrypted: false
-  });
 
-  const { data: configurations = [], isLoading, refetch } = useQuery(
-    ['configurations', environment],
-    async () => {
-      const response = await axios.get(`/api/config/${environment}`);
-      return response.data;
+  // Project bilgisini çek
+  const { data: project, isLoading: projectLoading } = useQuery(
+    ['project', projectId],
+    () => apiService.projects.getById(projectId)
+  );
+
+  // Config verilerini çek
+  const { data: configs = [], isLoading: configsLoading } = useQuery(
+    ['configs', projectId, selectedEnvironment], 
+    () => apiService.configs.getByEnvironment(projectId, selectedEnvironment),
+    {
+      staleTime: 30000, // 30 saniye fresh kalır
+      cacheTime: 300000, // 5 dakika cache'te kalır
+      refetchOnWindowFocus: false, // Tab değiştirince yeniden çekme
     }
   );
 
-  const createMutation = useMutation(
-    async (config) => {
-      const response = await axios.post('/api/config', {
-        ...config,
-        environment,
-        createdBy: 'user' // TODO: Get from auth context
-      });
-      return response.data;
-    },
+  // Delete mutation
+  const deleteConfigMutation = useMutation(
+    (configId) => apiService.configs.delete(configId, selectedEnvironment),
     {
       onSuccess: () => {
-        // Force refresh the data
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-        toast.success('Configuration created successfully!');
-        setOpenDialog(false);
-        resetForm();
-      },
-      onError: (error) => {
-        console.error('Create error:', error);
-        if (error.response?.status === 409) {
-          toast.error('Configuration key already exists!');
-        } else {
-          toast.error(`Error creating configuration: ${error.response?.data?.message || error.message}`);
-        }
-        // Still try to refresh data in case it was actually created
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-      }
-    }
-  );
-
-  const bulkCreateMutation = useMutation(
-    async (configs) => {
-      const results = [];
-      const errors = [];
-      
-      // Process configs one by one to handle individual errors
-      for (const config of configs) {
-        try {
-          const response = await axios.post('/api/config', {
-            ...config,
-            environment,
-            createdBy: 'user'
-          });
-          results.push(response.data);
-        } catch (error) {
-          console.error(`Error creating config ${config.key}:`, error);
-          if (error.response?.status !== 409) { // Ignore duplicate key errors
-            errors.push({ key: config.key, error: error.message });
-          }
-        }
-      }
-      
-      return { results, errors };
-    },
-    {
-      onSuccess: ({ results, errors }) => {
-        // Force refresh the data
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-        
-        if (results.length > 0) {
-          toast.success(`${results.length} configurations created successfully!`);
-        }
-        if (errors.length > 0) {
-          toast.warning(`${errors.length} configurations had errors. Check console for details.`);
-        }
-        
-        setOpenEditorDialog(false);
-        setBulkJsonText('');
-        setEditorContent('');
-      },
-      onError: (error) => {
-        console.error('Bulk create error:', error);
-        toast.error('Error creating configurations. Please try again.');
-        // Still try to refresh data in case some succeeded
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-      }
-    }
-  );
-
-  const updateMutation = useMutation(
-    async ({ key, config }) => {
-      const response = await axios.put(`/api/config/${environment}/${key}`, {
-        ...config,
-        updatedBy: 'user' // TODO: Get from auth context
+         queryClient.invalidateQueries(['configs', projectId, selectedEnvironment]);
+        toast.success('Configuration deleted successfully! 🎉', {
+        duration: 3000,
+        position: 'top-right',
       });
-      return response.data;
-    },
-    {
-      onSuccess: () => {
-        // Force refresh the data
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-        toast.success('Configuration updated successfully!');
-        setOpenDialog(false);
-        resetForm();
       },
       onError: (error) => {
-        console.error('Update error:', error);
-        toast.error(`Error updating configuration: ${error.response?.data?.message || error.message}`);
-        // Still try to refresh data
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
+        console.error('Config deletion error:', error);
+        toast.error(`Failed to delete config: ${error.response?.data?.message || error.message}`, {
+          duration: 4000,
+          position: 'top-right',
+        });
       }
     }
   );
 
-  const deleteMutation = useMutation(
-    async (key) => {
-      await axios.delete(`/api/config/${environment}/${key}`);
-    },
-    {
-      onSuccess: () => {
-        // Force refresh the data
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-        toast.success('Configuration deleted successfully!');
-      },
-      onError: (error) => {
-        console.error('Delete error:', error);
-        toast.error(`Error deleting configuration: ${error.response?.data?.message || error.message}`);
-        // Still try to refresh data
-        queryClient.invalidateQueries(['configurations', environment]);
-        queryClient.refetchQueries(['configurations', environment]);
-      }
-    }
-  );
-
-  const resetForm = () => {
-    setNewConfig({
-      key: '',
-      value: '',
-      description: '',
-      isSensitive: false,
-      isEncrypted: false
-    });
-    setEditingConfig(null);
-  };
-
-  const handleSubmit = () => {
-    if (!newConfig.key || !newConfig.value) {
-      toast.error('Key and value are required');
-      return;
-    }
-
-    if (editingConfig) {
-      updateMutation.mutate({ 
-        key: editingConfig.key, 
-        config: newConfig 
-      });
-    } else {
-      createMutation.mutate(newConfig);
-    }
-  };
-
-  const handleBulkSubmit = () => {
-    try {
-      let parsedConfigs = [];
-      
-      // Try to parse as JSON first
-      try {
-        const jsonData = JSON.parse(bulkJsonText);
-        
-        if (typeof jsonData === 'object' && !Array.isArray(jsonData)) {
-          // Convert object to array of configs
-          parsedConfigs = Object.entries(jsonData).map(([key, value]) => ({
-            key,
-            value: String(value),
-            description: `Imported from JSON`,
-            isSensitive: false,
-            isEncrypted: false
-          }));
-        } else if (Array.isArray(jsonData)) {
-          // Handle array format
-          parsedConfigs = jsonData.map(item => {
-            if (typeof item === 'object' && item.key && item.value !== undefined) {
-              return {
-                key: item.key,
-                value: String(item.value),
-                description: item.description || 'Imported from JSON',
-                isSensitive: item.isSensitive || false,
-                isEncrypted: item.isEncrypted || false
-              };
-            }
-            throw new Error('Invalid array format');
-          });
-        }
-      } catch (jsonError) {
-        // Try to parse as .env format
-        const lines = bulkJsonText.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
-        
-        parsedConfigs = lines.map(line => {
-          const equalIndex = line.indexOf('=');
-          if (equalIndex === -1) {
-            throw new Error(`Invalid line format: ${line}`);
-          }
-          
-          const key = line.substring(0, equalIndex).trim();
-          let value = line.substring(equalIndex + 1).trim();
-          
-          // Remove quotes if present
-          if ((value.startsWith('"') && value.endsWith('"')) || 
-              (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-          }
-          
-          return {
-            key,
-            value,
-            description: 'Imported from text',
-            isSensitive: false,
-            isEncrypted: false
-          };
-        });
-      }
-
-      if (parsedConfigs.length === 0) {
-        toast.error('No valid configurations found');
-        return;
-      }
-
-      bulkCreateMutation.mutate(parsedConfigs);
-    } catch (error) {
-      toast.error(`Parse error: ${error.message}`);
-    }
-  };
-
-  const handleEditorSubmit = () => {
-    try {
-      let parsedConfigs = [];
-      
-      if (editorMode === 'json') {
-        const jsonData = JSON.parse(editorContent);
-        
-        if (typeof jsonData === 'object' && !Array.isArray(jsonData)) {
-          parsedConfigs = Object.entries(jsonData).map(([key, value]) => ({
-            key,
-            value: String(value),
-            description: `Imported from Monaco Editor`,
-            isSensitive: false,
-            isEncrypted: false
-          }));
-        } else if (Array.isArray(jsonData)) {
-          parsedConfigs = jsonData.map(item => ({
-            key: item.key,
-            value: String(item.value),
-            description: item.description || 'Imported from Monaco Editor',
-            isSensitive: item.isSensitive || false,
-            isEncrypted: item.isEncrypted || false
-          }));
-        }
-      } else if (editorMode === 'env') {
-        const lines = editorContent.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
-        
-        parsedConfigs = lines.map(line => {
-          const equalIndex = line.indexOf('=');
-          if (equalIndex === -1) {
-            throw new Error(`Invalid line format: ${line}`);
-          }
-          
-          const key = line.substring(0, equalIndex).trim();
-          let value = line.substring(equalIndex + 1).trim();
-          
-          if ((value.startsWith('"') && value.endsWith('"')) || 
-              (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-          }
-          
-          return {
-            key,
-            value,
-            description: 'Imported from Monaco Editor',
-            isSensitive: false,
-            isEncrypted: false
-          };
-        });
-      } else if (editorMode === 'yaml') {
-        // Simple YAML parsing for key-value pairs
-        const lines = editorContent.split('\n').filter(line => line.trim() && !line.trim().startsWith('#'));
-        
-        parsedConfigs = lines.map(line => {
-          const colonIndex = line.indexOf(':');
-          if (colonIndex === -1) {
-            throw new Error(`Invalid YAML line format: ${line}`);
-          }
-          
-          const key = line.substring(0, colonIndex).trim();
-          let value = line.substring(colonIndex + 1).trim();
-          
-          // Remove YAML quotes if present
-          if ((value.startsWith('"') && value.endsWith('"')) || 
-              (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-          }
-          
-          return {
-            key,
-            value,
-            description: 'Imported from Monaco Editor',
-            isSensitive: false,
-            isEncrypted: false
-          };
-        });
-      }
-
-      if (parsedConfigs.length === 0) {
-        toast.error('No valid configurations found');
-        return;
-      }
-
-      bulkCreateMutation.mutate(parsedConfigs);
-      setOpenEditorDialog(false);
-      setEditorContent('');
-    } catch (error) {
-      toast.error(`Parse error: ${error.message}`);
-    }
-  };
-
-  const openCodeEditor = (mode = 'json') => {
-    setEditorMode(mode);
-    
-    // Always populate with current configurations
-    if (configurations.length > 0) {
-      if (mode === 'json') {
-        // Create JSON object with all current configurations
-        const jsonData = configurations.reduce((acc, config) => {
-          acc[config.key] = config.value;
-          return acc;
-        }, {});
-        setEditorContent(JSON.stringify(jsonData, null, 2));
-      } else if (mode === 'env') {
-        // Create .env format with all current configurations
-        const envContent = configurations
-          .map(config => {
-            // Add quotes if value contains spaces or special characters
-            const value = config.value.includes(' ') || config.value.includes('#') 
-              ? `"${config.value}"` 
-              : config.value;
-            return `${config.key}=${value}`;
-          })
-          .join('\n');
-        setEditorContent(envContent);
-      } else if (mode === 'yaml') {
-        // Create YAML format with all current configurations
-        const yamlContent = configurations
-          .map(config => {
-            // Add quotes if value contains special characters
-            const value = config.value.includes(':') || config.value.includes('#') 
-              ? `"${config.value}"` 
-              : config.value;
-            return `${config.key}: ${value}`;
-          })
-          .join('\n');
-        setEditorContent(yamlContent);
-      }
-    } else {
-      // Default examples when no configurations exist
-      if (mode === 'json') {
-        setEditorContent(`{
-  "DATABASE_URL": "postgresql://localhost:5432/mydb",
-  "API_KEY": "your-secret-key",
-  "PORT": "3000",
-  "NODE_ENV": "production"
-}`);
-      } else if (mode === 'env') {
-        setEditorContent(`DATABASE_URL=postgresql://localhost:5432/mydb
-API_KEY=your-secret-key
-PORT=3000
-NODE_ENV=production`);
-      } else if (mode === 'yaml') {
-        setEditorContent(`DATABASE_URL: postgresql://localhost:5432/mydb
-API_KEY: your-secret-key
-PORT: 3000
-NODE_ENV: production`);
-      }
-    }
-    
-    setOpenEditorDialog(true);
+  const handleLogout = () => {
+    apiService.auth.logout();
+    navigate('/');
   };
 
   const handleEdit = (config) => {
     setEditingConfig(config);
-    setNewConfig({
-      key: config.key,
-      value: config.value,
-      description: config.description || '',
-      isSensitive: config.isSensitive,
-      isEncrypted: config.isEncrypted
-    });
-    setOpenDialog(true);
+    setIsModalOpen(true);
   };
 
-  const handleDelete = (key) => {
-    if (window.confirm('Are you sure you want to delete this configuration?')) {
-      deleteMutation.mutate(key);
+  const handleDelete = (config) => {
+    setConfigToDelete(config);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (configToDelete) {
+      deleteConfigMutation.mutate(configToDelete.id);
+      setConfigToDelete(null);
     }
   };
 
-  const handleExport = async () => {
-    try {
-      const response = await axios.get(`/api/config/${environment}/export/env`, {
-        responseType: 'blob'
-      });
-      fileDownload(response.data, `${environment}.env`);
-      toast.success('Configuration exported successfully!');
-    } catch (error) {
-      toast.error('Error exporting configuration');
-    }
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingConfig(null);
   };
 
-  const toggleSensitiveVisibility = (key) => {
-    setShowSensitive(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const filteredConfigurations = configurations.filter(config =>
-    config.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (config.description && config.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  if (isLoading) {
-    return <Typography>Loading...</Typography>;
+  if (projectLoading || configsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-dark">
+        <div className="text-white">Loading configuration...</div>
+      </div>
+    );
   }
 
   return (
-    <Box>
-      <Box display="flex" alignItems="center" mb={3}>
-        <IconButton onClick={() => navigate('/')} sx={{ mr: 2 }}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h4" sx={{ flexGrow: 1 }}>
-          {environment.charAt(0).toUpperCase() + environment.slice(1)} Configuration
-        </Typography>
-      </Box>
+    <>
+      <div className="bg-background-light dark:bg-background-dark min-h-screen flex font-display text-gray-900 dark:text-gray-100 overflow-hidden">
+        <aside className="w-64 border-r border-gray-200 dark:border-[#233648] bg-white dark:bg-[#0d1117] flex flex-col h-screen">
+          <div className="p-6 flex items-center gap-3">
+            <div className="size-8 flex items-center justify-center bg-primary rounded-lg text-white">
+              <span className="material-symbols-outlined text-2xl">key_visualizer</span>
+            </div>
+            <h2 className="text-lg font-bold tracking-tight">Config Vault</h2>
+          </div>
+          
+          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+            <div className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 px-2">Main</div>
+            <button 
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              onClick={() => navigate('/dashboard')}
+            >
+              <span className="material-symbols-outlined text-xl">folder</span>
+              <span className="font-medium text-sm">Projects</span>
+            </button>
+            <a className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary" href="#">
+              <span className="material-symbols-outlined text-xl">settings</span>
+              <span className="font-medium text-sm">Configuration</span>
+            </a>
+          </nav>
+          
+          <div className="p-4 border-t border-gray-200 dark:border-[#233648]">
+            <div className="flex items-center gap-3 px-2">
+              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                {user?.username?.substring(0, 2).toUpperCase() || 'JD'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{user?.username || 'Jane Developer'}</p>
+                <p className="text-[10px] text-gray-500 truncate">Pro Account</p>
+              </div>
+              <button 
+                className="text-gray-500 hover:text-white transition-colors"
+                onClick={handleLogout}
+              >
+                <span className="material-symbols-outlined text-lg">logout</span>
+              </button>
+            </div>
+          </div>
+        </aside>
 
-      <Box className="toolbar">
-        <TextField
-          placeholder="Search configurations..."
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-          }}
-          sx={{ minWidth: 300 }}
-        />
-        
-        <Box>
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={handleExport}
-            sx={{ mr: 2 }}
-            disabled={configurations.length === 0}
-          >
-            Export .env
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<CodeIcon />}
-            onClick={() => openCodeEditor('json')}
-            sx={{ mr: 2 }}
-          >
-            Code Editor
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setOpenDialog(true)}
-          >
-            Add Configuration
-          </Button>
-        </Box>
-      </Box>
+        <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+          <header className="h-16 border-b border-gray-200 dark:border-[#233648] bg-white dark:bg-background-dark/50 flex items-center justify-between px-8">
+            <div className="flex items-center gap-4">
+              <button 
+                className="text-gray-500 hover:text-white transition-colors"
+                onClick={() => navigate('/dashboard')}
+              >
+                <span className="material-symbols-outlined">arrow_back</span>
+              </button>
+              <h1 className="text-xl font-bold">{project?.name || 'Project'}</h1>
+              <span className="px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-bold uppercase tracking-widest">
+                {selectedEnvironment}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-primary/20"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                Add New Config
+              </button>
+            </div>
+          </header>
 
-      {configurations.length === 0 ? (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          No configurations found for {environment}. Click "Add Configuration" to get started.
-        </Alert>
-      ) : (
-        <TableContainer component={Paper} className="config-table">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell><strong>Key</strong></TableCell>
-                <TableCell><strong>Value</strong></TableCell>
-                <TableCell><strong>Description</strong></TableCell>
-                <TableCell><strong>Properties</strong></TableCell>
-                <TableCell><strong>Actions</strong></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredConfigurations.map((config) => (
-                <TableRow key={config.id}>
-                  <TableCell>
-                    <Typography variant="body2" fontFamily="monospace">
-                      {config.key}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box display="flex" alignItems="center">
-                      <Typography 
-                        variant="body2" 
-                        fontFamily="monospace"
-                        sx={{ 
-                          maxWidth: 200, 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {config.isSensitive && !showSensitive[config.key] 
-                          ? '••••••••' 
-                          : config.value
-                        }
-                      </Typography>
+                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+  <div className="flex items-center justify-between gap-6 mb-8">
+    {/* Environment Tabs */}
+    <div className="flex gap-3 p-1 bg-gray-100 dark:bg-[#161b22] rounded-xl">
+      {[
+        { env: 'production', icon: '🚀', color: 'green' },
+        { env: 'staging', icon: '🔧', color: 'yellow' },
+        { env: 'development', icon: '💻', color: 'blue' }
+      ].map(({ env, icon, color }) => (
+        <button
+          key={env}
+          onClick={() => setSelectedEnvironment(env)}
+          className={`group relative px-6 py-3 rounded-lg font-bold text-xs uppercase tracking-widest transition-all ${
+            selectedEnvironment === env
+              ? color === 'green'
+                ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
+                : color === 'yellow'
+                ? 'bg-yellow-500 text-white shadow-lg shadow-yellow-500/20'
+                : 'bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-lg">{icon}</span>
+            {env}
+            {configs.length > 0 && selectedEnvironment === env && (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20">
+                {configs.length}
+              </span>
+            )}
+          </span>
+        </button>
+      ))}
+    </div>
+
+    {/* Search Bar */}
+    <div className="relative w-full max-w-md">
+      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xl">search</span>
+      <input
+        className="w-full bg-white dark:bg-[#161b22] border border-gray-200 dark:border-[#324d67] rounded-lg pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+        placeholder={`Search in ${selectedEnvironment}...`}
+        type="text"
+      />
+    </div>
+  </div>
+
+            {/* Config List */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">
+                  {selectedEnvironment} Variables
+                </h3>
+                <span className="text-xs text-gray-500">{configs.length} Variables</span>
+              </div>
+
+              {configs.length === 0 ? (
+                <div className="glass-card rounded-xl p-12 text-center">
+                  <span className="material-symbols-outlined text-gray-400 text-6xl mb-4">key_off</span>
+                  <h3 className="text-lg font-bold text-gray-600 dark:text-gray-400 mb-2">
+                    No configurations in {selectedEnvironment}
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Add your first {selectedEnvironment} config to get started!
+                  </p>
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold transition-all"
+                  >
+                    <span className="material-symbols-outlined text-sm">add</span>
+                    Add Config
+                  </button>
+                </div>
+              ) : (
+                configs.map((config) => (
+                  <div 
+                    key={config.id} 
+                    className="glass-card rounded-xl p-4 flex items-center justify-between group hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-gray-100 dark:bg-white/5 rounded-lg">
+                        <span className="material-symbols-outlined text-primary">key</span>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm font-mono">{config.key}</h4>
+                        <p className="text-xs text-gray-500 font-mono">
+                          {config.isSensitive ? '••••••••' : config.value}
+                        </p>
+                        {config.description && (
+                          <p className="text-xs text-gray-400 mt-1">{config.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       {config.isSensitive && (
-                        <IconButton 
-                          size="small" 
-                          onClick={() => toggleSensitiveVisibility(config.key)}
-                          sx={{ ml: 1 }}
-                        >
-                          {showSensitive[config.key] ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                        </IconButton>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {config.description || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box>
-                      {config.isSensitive && (
-                        <Chip label="Sensitive" color="warning" size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                        <span className="px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-500 text-[10px] font-bold">
+                          <span className="material-symbols-outlined text-xs">visibility_off</span>
+                        </span>
                       )}
                       {config.isEncrypted && (
-                        <Chip label="Encrypted" color="info" size="small" sx={{ mr: 0.5, mb: 0.5 }} />
+                        <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-500 text-[10px] font-bold">
+                          <span className="material-symbols-outlined text-xs">lock</span>
+                        </span>
                       )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title="Edit">
-                      <IconButton 
-                        size="small" 
+                      <button 
                         onClick={() => handleEdit(config)}
-                        color="primary"
+                        className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-primary transition-colors"
+                        disabled={deleteConfigMutation.isLoading}
                       >
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton 
-                        size="small" 
-                        onClick={() => handleDelete(config.key)}
-                        color="error"
+                        <span className="material-symbols-outlined text-lg">edit</span>
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(config)}
+                        className="p-2 hover:bg-red-500/10 rounded-lg text-gray-500 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={deleteConfigMutation.isLoading}
                       >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+                        {deleteConfigMutation.isLoading && deleteConfigMutation.variables === config.id ? (
+                          <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-lg">delete</span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          
+          
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingConfig ? 'Edit Configuration' : 'Add New Configuration'}
-        </DialogTitle>
-        <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2} mt={1}>
-            <TextField
-              label="Key"
-              variant="outlined"
-              fullWidth
-              value={newConfig.key}
-              onChange={(e) => setNewConfig({ ...newConfig, key: e.target.value })}
-              disabled={!!editingConfig}
-              placeholder="DATABASE_URL"
-            />
-            <TextField
-              label="Value"
-              variant="outlined"
-              fullWidth
-              multiline
-              rows={3}
-              value={newConfig.value}
-              onChange={(e) => setNewConfig({ ...newConfig, value: e.target.value })}
-              placeholder="postgresql://localhost:5432/mydb"
-            />
-            <TextField
-              label="Description"
-              variant="outlined"
-              fullWidth
-              value={newConfig.description}
-              onChange={(e) => setNewConfig({ ...newConfig, description: e.target.value })}
-              placeholder="Database connection URL for the application"
-            />
-            <Box>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={newConfig.isSensitive}
-                    onChange={(e) => setNewConfig({ ...newConfig, isSensitive: e.target.checked })}
-                  />
-                }
-                label="Sensitive (hide value in UI)"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={newConfig.isEncrypted}
-                    onChange={(e) => setNewConfig({ ...newConfig, isEncrypted: e.target.checked })}
-                  />
-                }
-                label="Encrypted (encrypt in database)"
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={() => {
-              setOpenDialog(false);
-              resetForm();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSubmit} 
-            variant="contained"
-            disabled={createMutation.isLoading || updateMutation.isLoading}
-          >
-            {editingConfig ? 'Update' : 'Create'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          <footer className="h-10 border-t border-gray-200 dark:border-[#233648] px-8 flex items-center justify-between text-[10px] font-medium text-gray-500 uppercase tracking-widest bg-white dark:bg-background-dark/50">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span> 
+                System Sync: Stable
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm">lock</span> 
+                Encryption: AES-256
+              </span>
+            </div>
+            <div>v2.4.0-stable © 2024 Config Vault</div>
+          </footer>
+        </main>
+      </div>
 
-      {/* Monaco Code Editor Dialog */}
-      <Dialog 
-        open={openEditorDialog} 
-        onClose={() => setOpenEditorDialog(false)} 
-        maxWidth="xl" 
-        fullWidth
-        PaperProps={{
-          sx: { height: '90vh', maxHeight: '90vh' }
+      <AddConfigModal 
+        isOpen={isModalOpen} 
+        onClose={handleCloseModal}
+        projectId={projectId}
+        existingConfigs={configs}
+        editingConfig={editingConfig}
+      />
+
+          <ConfirmDialog 
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setConfigToDelete(null);
         }}
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">Code Editor - Environment Variables</Typography>
-            <Box>
-              <Button
-                size="small"
-                variant={editorMode === 'json' ? 'contained' : 'outlined'}
-                onClick={() => openCodeEditor('json')}
-                sx={{ mr: 1 }}
-              >
-                JSON
-              </Button>
-              <Button
-                size="small"
-                variant={editorMode === 'env' ? 'contained' : 'outlined'}
-                onClick={() => openCodeEditor('env')}
-                sx={{ mr: 1 }}
-              >
-                .ENV
-              </Button>
-              <Button
-                size="small"
-                variant={editorMode === 'yaml' ? 'contained' : 'outlined'}
-                onClick={() => openCodeEditor('yaml')}
-              >
-                YAML
-              </Button>
-            </Box>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Box sx={{ mb: 2, px: 3, pt: 2 }}>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <Typography variant="body2">
-                {editorMode === 'json' && ' - Use objects like {"KEY": "value"} or arrays with metadata'}
-                {editorMode === 'env' && ' - Use KEY=value format, one per line'}
-                {editorMode === 'yaml' && ' - Use KEY: value format, one per line'}
-              </Typography>
-            </Alert>
-          </Box>
-          
-          <Box sx={{ flex: 1, minHeight: 0, px: 3 }}>
-            <Editor
-              language={editorMode === 'env' ? 'properties' : editorMode}
-              theme="vs-dark"
-              value={editorContent}
-              onChange={(value) => setEditorContent(value || '')}
-              options={{
-                minimap: { enabled: true },
-                fontSize: 16,
-                lineNumbers: 'on',
-                wordWrap: 'on',
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-                folding: true,
-                bracketMatching: 'always',
-                autoIndent: 'full',
-                formatOnPaste: true,
-                formatOnType: true,
-                suggestOnTriggerCharacters: true,
-                acceptSuggestionOnEnter: 'on',
-                tabCompletion: 'on',
-                parameterHints: { enabled: true },
-                quickSuggestions: true,
-                hover: { enabled: true },
-                contextmenu: true,
-                selectOnLineNumbers: true,
-                roundedSelection: false,
-                readOnly: false,
-                cursorStyle: 'line',
-                smoothScrolling: true,
-                cursorBlinking: 'blink',
-                renderWhitespace: 'selection',
-                renderIndentGuides: true,
-                colorDecorators: true,
-                codeLens: true,
-                lightbulb: { enabled: true }
-              }}
-              onMount={(editor, monaco) => {
-                // Configure JSON schema for better IntelliSense
-                if (editorMode === 'json') {
-                  monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-                    validate: true,
-                    allowComments: false,
-                    schemas: [{
-                      uri: "http://configmanager.schema.json",
-                      fileMatch: ["*"],
-                      schema: {
-                        type: "object",
-                        properties: {
-                          "DATABASE_URL": { type: "string", description: "Database connection URL" },
-                          "API_KEY": { type: "string", description: "API authentication key" },
-                          "PORT": { type: "string", description: "Application port number" },
-                          "NODE_ENV": { type: "string", enum: ["development", "staging", "production"] }
-                        },
-                        additionalProperties: { type: "string" }
-                      }
-                    }]
-                  });
-                }
-                
-                // Add custom key bindings
-                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-                  handleEditorSubmit();
-                });
-                
-                // Focus editor
-                editor.focus();
-              }}
-            />
-          </Box>
-          
-          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-            <Typography variant="caption" color="text.secondary">
-              💡 <strong>Tips:</strong> Press Ctrl+S to save • Use Ctrl+Space for autocomplete • 
-              {editorMode === 'json' && 'Supports both object and array formats'}
-              {editorMode === 'env' && 'Comments start with # and will be ignored'}
-              {editorMode === 'yaml' && 'Use proper YAML indentation for nested values'}
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button 
-            onClick={() => {
-              setOpenEditorDialog(false);
-              setEditorContent('');
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleEditorSubmit} 
-            variant="contained"
-            disabled={bulkCreateMutation.isLoading || !editorContent.trim()}
-            startIcon={<DataObjectIcon />}
-          >
-            {bulkCreateMutation.isLoading ? 'Creating...' : `Import ${editorMode.toUpperCase()}`}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        onConfirm={confirmDelete}
+        title="Delete Configuration"
+        message={`Are you sure you want to delete "${configToDelete?.key}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous={true}
+      />
+    </>
   );
 };
 
