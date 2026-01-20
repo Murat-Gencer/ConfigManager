@@ -4,7 +4,7 @@ import Editor from '@monaco-editor/react';
 import apiService from '../api/api';
 import toast from 'react-hot-toast';
 
-const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], editingConfig = null }) => {
+const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], editingConfig = null , environment }) => {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState('form');
   const [editorMode, setEditorMode] = useState('json');
@@ -19,22 +19,31 @@ const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], edit
     description: ''
   });
 
+  useEffect(() => {
+    if (environment && !editingConfig) {
+      setFormData(prev => ({
+        ...prev,
+        environment: environment
+      }));
+    }
+  }, [environment, editingConfig]);
+
   // Edit modunda form'u doldur
   useEffect(() => {
     if (editingConfig) {
       setFormData({
         key: editingConfig.key || '',
         value: editingConfig.value || '',
-        environment: editingConfig.environment || 'development',
+        environment: editingConfig.environment || environment || 'development', // 👈 Fallback
         isSecret: editingConfig.isEncrypted || false,
         isSensitive: editingConfig.isSensitive || false,
         description: editingConfig.description || ''
       });
-      setMode('form'); // Edit modunda form'u göster
+      setMode('form');
     } else {
       resetForm();
     }
-  }, [editingConfig]);
+  }, [editingConfig, environment]);
 
   // Single config mutation (Create)
   const addConfigMutation = useMutation(
@@ -109,7 +118,7 @@ const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], edit
     setFormData({
       key: '',
       value: '',
-      environment: 'development',
+      environment: environment || 'development',
       isSecret: false,
       isSensitive: false,
       description: ''
@@ -462,7 +471,7 @@ const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], edit
                   </button>
                 </div>
                 <div className="flex gap-2 p-1 bg-gray-200 dark:bg-[#161b22] rounded-lg">
-                  {['development', 'staging', 'production'].map((env) => (
+                  {['production' , 'staging' , 'development'].map((env) => (
                     <button
                       key={env}
                       type="button"
