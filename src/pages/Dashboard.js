@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from 'react-query';
+import { useQuery, useMutation, useQueryClient} from 'react-query';
 import apiService from '../api/api';
 import Sidebar from '../components/Sidebar';
 import PageHeader from '../components/PageHeader';
@@ -8,12 +8,18 @@ import SearchBar from '../components/SearchBar';
 import ProjectCard from '../components/ProjectCard';
 import EmptyState from '../components/EmptyState';
 import AddProjectModal from '../components/AddProjectModal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { toast } from 'react-hot-toast';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+
 
   const { data: projects = [], isLoading } = useQuery(
     'projects',
@@ -34,6 +40,26 @@ const Dashboard = () => {
     );
   });
 
+  const deleteProjectMutation = useMutation(
+    (projectId) => apiService.projects.delete(projectId),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('projects');
+        toast.success('Project deleted successfully! 🎉', {
+          duration: 3000,
+          position: 'top-right',
+        });
+      },
+      onError: (error) => {
+        console.error('Project deletion error:', error);
+        toast.error(`Failed to delete project: ${error.response?.data?.message || error.message}`, {
+          duration: 4000,
+          position: 'top-right',
+        });
+      }
+    }
+  );
+
   const handleEdit = (project, e) => {
     e.stopPropagation();
     setEditingProject(project);
@@ -43,6 +69,20 @@ const Dashboard = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingProject(null);
+  };
+
+  const handleDelete = (project , e) => {
+    e.stopPropagation();
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+  }
+
+  const confirmDelete = () => {
+    if (projectToDelete) {
+      deleteProjectMutation.mutate(projectToDelete.id);
+      setProjectToDelete(null);
+      setDeleteDialogOpen(false);
+    }
   };
 
   if (isLoading) {
@@ -64,7 +104,6 @@ const Dashboard = () => {
         <Sidebar />
 
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-          {/* 👇 PageHeader Component */}
           <PageHeader
             title="Projects"
             badge={`${projects.length} Active`}
@@ -74,9 +113,7 @@ const Dashboard = () => {
           />
 
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-            {/* Search & Filters */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-              {/* 👇 SearchBar Component */}
               <SearchBar
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -95,7 +132,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Projects List */}
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">
@@ -107,7 +143,6 @@ const Dashboard = () => {
               </div>
 
               {filteredProjects.length === 0 ? (
-                // 👇 EmptyState Component
                 <EmptyState
                   icon={searchQuery ? 'search_off' : 'folder_off'}
                   title={searchQuery ? `No results for "${searchQuery}"` : 'No projects yet'}
@@ -121,7 +156,6 @@ const Dashboard = () => {
                   onButtonClick={() => searchQuery ? setSearchQuery('') : setIsModalOpen(true)}
                 />
               ) : (
-                // 👇 ProjectCard Component
                 filteredProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
@@ -129,6 +163,8 @@ const Dashboard = () => {
                     searchQuery={searchQuery}
                     onClick={() => navigate(`/projects/${project.id}`)}
                     onEdit={(e) => handleEdit(project, e)}
+                    onDelete={(e) => handleDelete(project, e)}
+                     isDeleting={deleteProjectMutation.isLoading && deleteProjectMutation.variables === project.id}
                   />
                 ))
               )}
@@ -151,6 +187,20 @@ const Dashboard = () => {
           </footer>
         </main>
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setProjectToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Project"
+        message={`Are you sure you want to delete "${projectToDelete?.name}"? This will also delete all configurations in this project. This action cannot be undone.`}
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        isDangerous={true}
+      />
 
       <AddProjectModal
         isOpen={isModalOpen}
