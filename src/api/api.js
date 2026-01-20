@@ -135,9 +135,7 @@ const apiService = {
   configs: {
 
     getByEnvironment: async (projectId, environment) => {
-      const response = await request.get(`/config/${environment}`, {
-        params: { projectId }  // Query param olarak projectId gönder
-      });
+      const response = await request.get(`/config/${environment}/${projectId}`);
       return response.data;
     },
 
@@ -152,12 +150,6 @@ const apiService = {
       const response = await request.post('/config/batch', batchData);
       return response.data;
     },
-
-    getByProjectId: async (projectId) => {
-      const response = await request.get(`/projects/${projectId}/configs`);
-      return response.data;
-    },
-
     update: async (configId, configData) => {
       const response = await request.put(`/config/${configId}`, configData);
       return response.data;
