@@ -5,6 +5,7 @@ import apiService from '../api/api';
 import AddConfigModal from '../components/AddConfig';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Sidebar from '../components/Sidebar';
 
 
 const ConfigEditor = () => {
@@ -106,47 +107,8 @@ const ConfigEditor = () => {
   return (
     <>
       <div className="bg-background-light dark:bg-background-dark min-h-screen flex font-display text-gray-900 dark:text-gray-100 overflow-hidden">
-        <aside className="w-64 border-r border-gray-200 dark:border-[#233648] bg-white dark:bg-[#0d1117] flex flex-col h-screen">
-          <div className="p-6 flex items-center gap-3">
-            <div className="size-8 flex items-center justify-center bg-primary rounded-lg text-white">
-              <span className="material-symbols-outlined text-2xl">key_visualizer</span>
-            </div>
-            <h2 className="text-lg font-bold tracking-tight">Config Vault</h2>
-          </div>
 
-          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-            <div className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 px-2">Main</div>
-            <button
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-              onClick={() => navigate('/dashboard')}
-            >
-              <span className="material-symbols-outlined text-xl">folder</span>
-              <span className="font-medium text-sm">Projects</span>
-            </button>
-            <a className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary" href="#">
-              <span className="material-symbols-outlined text-xl">settings</span>
-              <span className="font-medium text-sm">Configuration</span>
-            </a>
-          </nav>
-
-          <div className="p-4 border-t border-gray-200 dark:border-[#233648]">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
-                {user?.username?.substring(0, 2).toUpperCase() || 'JD'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{user?.username || 'Jane Developer'}</p>
-                <p className="text-[10px] text-gray-500 truncate">Pro Account</p>
-              </div>
-              <button
-                className="text-gray-500 hover:text-white transition-colors"
-                onClick={handleLogout}
-              >
-                <span className="material-symbols-outlined text-lg">logout</span>
-              </button>
-            </div>
-          </div>
-        </aside>
+        <Sidebar />
 
         <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
           <header className="h-16 border-b border-gray-200 dark:border-[#233648] bg-white dark:bg-background-dark/50 flex items-center justify-between px-8">
