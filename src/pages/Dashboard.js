@@ -9,6 +9,7 @@ import ProjectCard from '../components/ProjectCard';
 import EmptyState from '../components/EmptyState';
 import AddProjectModal from '../components/AddProjectModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ApiKeyModal from '../components/ApiKeyModal';
 import { toast } from 'react-hot-toast';
 
 const Dashboard = () => {
@@ -19,6 +20,8 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState(null);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
 
   const { data: projects = [], isLoading } = useQuery(
@@ -83,6 +86,11 @@ const Dashboard = () => {
       setProjectToDelete(null);
       setDeleteDialogOpen(false);
     }
+  };
+
+  const handleShowApiKey = (project) => {
+    setSelectedProject(project);
+    setApiKeyModalOpen(true);
   };
 
   if (isLoading) {
@@ -164,6 +172,7 @@ const Dashboard = () => {
                     onClick={() => navigate(`/projects/${project.id}`)}
                     onEdit={(e) => handleEdit(project, e)}
                     onDelete={(e) => handleDelete(project, e)}
+                    onShowApiKey={handleShowApiKey}
                      isDeleting={deleteProjectMutation.isLoading && deleteProjectMutation.variables === project.id}
                   />
                 ))
@@ -206,6 +215,15 @@ const Dashboard = () => {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         editingProject={editingProject}
+      />
+
+      <ApiKeyModal
+        isOpen={apiKeyModalOpen}
+        onClose={() => {
+          setApiKeyModalOpen(false);
+          setSelectedProject(null);
+        }}
+        project={selectedProject}
       />
     </>
   );

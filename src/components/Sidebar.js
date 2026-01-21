@@ -59,7 +59,7 @@ const Sidebar = () => {
             {section.items.map((item) => (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => navigate("/dashboard")} // burası diğer özellikler göre  düzenlenecek
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                   isActive(item.path)
                     ? 'bg-primary/10 text-primary'
