@@ -23,10 +23,14 @@ const LoginPage = () => {
         navigate('/dashboard');
       } else {
         setError(result.error);
+        setEmail('');
+        setPassword('');
         console.error('Login failed:', result.error);
       }
     } catch (err) {
       setError('An unexpected error occurred');
+      setEmail('');
+      setPassword('');
       console.error('Login error:', err);
     } finally {
       setLoading(false);
@@ -120,9 +124,26 @@ const LoginPage = () => {
                     </button>
                   </div>
                 </div>
+                {error && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                    <span className="material-symbols-outlined text-lg">error</span>
+                    <span>{error}</span>
+                  </div>
+                )}
 
-                <button className="w-full flex items-center justify-center rounded-lg h-12 bg-primary text-white text-base font-bold tracking-wide hover:bg-primary/90 transition-all shadow-lg shadow-primary/20" type="submit">
-                  Sign In to Dashboard
+                <button 
+                  className="w-full flex items-center justify-center rounded-lg h-12 bg-primary text-white text-base font-bold tracking-wide hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed" 
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+                      Signing In...
+                    </>
+                  ) : (
+                    'Sign In to Dashboard'
+                  )}
                 </button>
     
               </form>
