@@ -1,6 +1,7 @@
 import React, { useState} from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../api/api';
+import Footer from '../components/Footer';
 
 
 const LoginPage = () => {
@@ -165,14 +166,7 @@ const LoginPage = () => {
           </div>
         </main>
 
-        <footer className="px-10 py-6 border-t border-gray-200 dark:border-[#233648] flex justify-between items-center text-[#92adc9] text-xs">
-          <div>© 2024 Config Manager. All rights reserved.</div>
-          <div className="flex gap-6">
-            <a className="hover:text-white transition-colors" href="#">Documentation</a>
-            <a className="hover:text-white transition-colors" href="#">Security Policy</a>
-            <a className="hover:text-white transition-colors" href="#">Status</a>
-          </div>
-        </footer>
+        <Footer />
       </div>
     </>
   );
