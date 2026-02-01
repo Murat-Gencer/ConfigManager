@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from 'react-query';
 import Editor from '@monaco-editor/react';
 import apiService from '../api/api';
@@ -27,19 +27,6 @@ const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], edit
       }));
     }
   }, [environment, editingConfig]);
-
-  const resetForm = useCallback(() => {
-    setFormData({
-      key: '',
-      value: '',
-      environment: environment || 'development',
-      isSecret: false,
-      isSensitive: false,
-      description: ''
-    });
-    setMode('form');
-    setEditorContent('');
-  }, [environment]);
 
   // Edit modunda form'u doldur
   useEffect(() => {
@@ -126,6 +113,19 @@ const AddConfigModal = ({ isOpen, onClose, projectId, existingConfigs = [], edit
       }
     }
   );
+
+  const resetForm = () => {
+    setFormData({
+      key: '',
+      value: '',
+      environment: environment || 'development',
+      isSecret: false,
+      isSensitive: false,
+      description: ''
+    });
+    setMode('form');
+    setEditorContent('');
+  };
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
