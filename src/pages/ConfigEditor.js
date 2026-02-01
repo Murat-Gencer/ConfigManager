@@ -17,7 +17,7 @@ const ConfigEditor = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const user = apiService.auth.getCurrentUser();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
 
@@ -69,11 +69,6 @@ const ConfigEditor = () => {
       }
     }
   );
-
-  const handleLogout = () => {
-    apiService.auth.logout();
-    navigate('/');
-  };
 
   const handleEdit = (config) => {
     setEditingConfig(config);
